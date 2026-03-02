@@ -46,7 +46,6 @@ type Step =
   | "askContactName"
   | "finalChoice"
   | "done";
-
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -98,7 +97,7 @@ const App: React.FC = () => {
     if (step === "intro" && messages.length === 0) {
       addBotMessage([
         "Welcome to FullCircle Placements.",
-        "Looks like you might be hiring \u2014 tell me what type of role you're thinking about.",
+        "Looks like you might be hiring — tell me what type of role you're thinking about.",
       ]);
       setStep("askRoleDetail");
     }
@@ -236,7 +235,7 @@ const App: React.FC = () => {
           }, 400);
         } else {
           setTimeout(() => {
-            addBotMessage(["Totally fine. We can still run a strong search \u2014 but it may take longer, and the bar may need to flex a bit.", "To run this properly, we still have to cover the cost of doing it right.", "If we could deliver a strong performer for this role, would you be willing to pay a 25% fee on first-year base? We'd include a 90-day guarantee."], ["Yes", "No"]);
+            addBotMessage(["Totally fine. We can still run a strong search — but it may take longer, and the bar may need to flex a bit.", "To run this properly, we still have to cover the cost of doing it right.", "If we could deliver a strong performer for this role, would you be willing to pay a 25% fee on first-year base? We'd include a 90-day guarantee."], ["Yes", "No"]);
             setStep("competitorFee25");
           }, 400);
         }
@@ -311,7 +310,7 @@ const App: React.FC = () => {
       case "askContactName": {
         setRoleInfo((prev) => ({ ...prev, contactName: text }));
         setTimeout(() => {
-          addBotMessage([`Perfect. I'm going to generate an agreement with these details and send it to ${text}.`, "Once it's signed, you'll hear from Taylor Hassell to kick things off \u2014 unless you'd prefer to schedule a call first."], ["Just send it", "Schedule a call instead"]);
+          addBotMessage([`Perfect. I'm going to generate an agreement with these details and send it to ${text}.`, "Once it's signed, you'll hear from Taylor Hassell to kick things off — unless you'd prefer to schedule a call first."], ["Just send it", "Schedule a call instead"]);
           setStep("finalChoice");
         }, 400);
         break;
@@ -346,17 +345,17 @@ const App: React.FC = () => {
       [
         "Great. I'll summarize this and we'll lock in the details.",
         "Here's what I have:",
-        `\u2022 Role: ${rawDescription || ""}`,
-        yearsExperience ? `\u2022 Experience: ${yearsExperience} years` : "",
-        salaryRange ? `\u2022 Salary range: ${salaryRange}` : "",
-        marketJobs && marketCandidates ? `\u2022 Market: ${difficultyText} (based on ~${marketJobs} jobs vs ~${marketCandidates} candidates)` : "",
-        `\u2022 Priorities: ${label(primaryPriority)} first, ${label(secondaryPriority)} second`,
-        `\u2022 Fee: ${feePercent}% with a 90-day guarantee`,
+        `• Role: ${rawDescription || ""}`,
+        yearsExperience ? `• Experience: ${yearsExperience} years` : "",
+        salaryRange ? `• Salary range: ${salaryRange}` : "",
+        marketJobs && marketCandidates ? `• Market: ${difficultyText} (based on ~${marketJobs} jobs vs ~${marketCandidates} candidates)` : "",
+        `• Priorities: ${label(primaryPriority)} first, ${label(secondaryPriority)} second`,
+        `• Fee: ${feePercent}% with a 90-day guarantee`,
       ].filter(Boolean) as string[]
     );
     setTimeout(() => {
       addBotMessage(
-        ["I can either:", "\u2022 Send you a DocuSign search agreement with these terms, or", "\u2022 Schedule a quick call before we formalize anything."],
+        ["I can either:", "• Send you a DocuSign search agreement with these terms, or", "• Schedule a quick call before we formalize anything."],
         ["Send DocuSign", "Schedule a call first"]
       );
       setStep("confirmSend");
@@ -391,11 +390,11 @@ const App: React.FC = () => {
           <form className="input-row" onSubmit={handleSubmit}>
             <input
               type="text"
-              placeholder="Type anything about the role you're hiring for\u2026"
+              placeholder="Type anything about the role you're hiring for..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
             />
-            <button type="submit" className="send-btn">\u21B5</button>
+                        <button type="submit" className="send-btn">{String.fromCharCode(0x21B5)}</button>
           </form>
           <div className="helper-text">No forms. Just describe what you need.</div>
         </div>
