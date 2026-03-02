@@ -1,5 +1,7 @@
-import React, { useState, useEffect, FormEvent, useRef } from "react";
+import React, { useState, useEffect, FormEvent, useRef, useCallback } from "react";
 import "./App.css";
+
+const API_BASE = window.location.origin;
 
 type RoleInfo = {
   rawDescription?: string;
@@ -9,6 +11,11 @@ type RoleInfo = {
   marketJobs?: number;
   marketCandidates?: number;
   marketDifficulty?: "easy" | "competitive" | "hard";
+  avgSalary?: number;
+  demandTrend?: string;
+  timeToFill?: number;
+  topCompetitors?: string[];
+  topSkills?: string[];
   primaryPriority?: "speed" | "quality" | "salary";
   secondaryPriority?: "speed" | "quality" | "salary";
   aboveMarketOk?: boolean | null;
@@ -46,6 +53,35 @@ type Step =
   | "askContactName"
   | "finalChoice"
   | "done";
+
+// Lead Magnet Modal Component
+const LeadModal: React.FC<{
+  show: boolean;
+  capturePoint: string;
+  headline: string;
+  description: string;
+  onSubmit: (email: string, name: string) => void;
+  onDismiss: () => void;
+}> = ({ show, capturePoint, headline, description, onSubmit, onDismiss }) => {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  if (!show) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-card">
+        <h3>{headline}</h3>
+        <p>{description}</p>
+        <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className="modal-input" />
+        <input type="email" placeholder="Your email" value={email} onChange={(e) => setEmail(e.target.value)} className="modal-input" />
+        <div className="modal-actions">
+          <button onClick={() => { if (email) onSubmit(email, name); }} className="modal-btn primary">Send me the report</button>
+          <button onClick={onDismiss} className="modal-btn secondary">No thanks</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -53,15 +89,82 @@ const App: React.FC = () => {
   const [roleInfo, setRoleInfo] = useState<RoleInfo>({});
   const [nextMessageId, setNextMessageId] = useState(1);
   const [pendingOptions, setPendingOptions] = useState<string[] | null>(null);
+  const [showLeadModal, setShowLeadModal] = useState(false);
+  const [leadModalConfig, setLeadModalConfig] = useState({ capturePoint: "", headline: "", description: "" });
+  const [emailCaptured, setEmailCaptured] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => { scrollToBottom(); }, [messages]);
+
+  // Inactivity timer - show lead capture after 90s of no activity
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (emailCaptured || step === "done" || step === "intro") return;
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = setTimeout(() => {
+      if (!emailCaptured && step !== "done" && step !== "intro") {
+        setLeadModalConfig({
+          capturePoint: "inactivity",
+          headline: "Want us to save your progress?",
+          description: "We'll email you everything we've gathered so far, so you can pick up right where you left off.",
+        });
+        setShowLeadModal(true);
+      }
+    }, 90000);
+    return () => { if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current); };
+  }, [lastActivity, emailCaptured, step]);
+
+  // API Helpers
+  const callAPI = async (endpoint: string, body: any) => {
+    try {
+      const resp = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return await resp.json();
+    } catch (err) {
+      console.error(`API call to ${endpoint} failed:`, err);
+      return null;
+    }
+  };
+
+  const captureLeadAndDeliver = async (email: string, name: string, capturePoint: string) => {
+    setEmailCaptured(true);
+    setShowLeadModal(false);
+    await callAPI("/api/lead-capture", {
+      email, name, capturePoint, roleContext: roleInfo,
+    });
+    addBotMessage(`Got it, ${name || "friend"}. We'll send your personalized market intelligence to ${email}.`);
+  };
+
+  const fetchMarketData = async (roleTitle: string, location: string) => {
+    const data = await callAPI("/api/market-data", {
+      roleTitle, location: location || "United States",
+      yearsExperience: roleInfo.yearsExperience,
+      salaryRange: roleInfo.salaryRange,
+    });
+    return data;
+  };
+
+  const sendDocuSign = async () => {
+    const result = await callAPI("/api/docusign", {
+      companyName: roleInfo.companyName,
+      contactEmail: roleInfo.contactEmail,
+      contactName: roleInfo.contactName,
+      feePercent: roleInfo.feeAccepted,
+      roleSummary: {
+        roleTitle: roleInfo.rawDescription,
+        salaryRange: roleInfo.salaryRange,
+      },
+    });
+    return result;
+  };
 
   const addBotMessage = (text: string | string[], options?: string[]) => {
     const texts = Array.isArray(text) ? text : [text];
@@ -86,18 +189,16 @@ const App: React.FC = () => {
   };
 
   const addUserMessage = (text: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: nextMessageId, from: "user", text },
-    ]);
+    setMessages((prev) => [...prev, { id: nextMessageId, from: "user", text }]);
     setNextMessageId((id) => id + 1);
+    setLastActivity(Date.now());
   };
 
   useEffect(() => {
     if (step === "intro" && messages.length === 0) {
       addBotMessage([
         "Welcome to FullCircle Placements.",
-        "Looks like you might be hiring — tell me what type of role you're thinking about.",
+        "Looks like you might be hiring \u2014 tell me what type of role you're thinking about.",
       ]);
       setStep("askRoleDetail");
     }
@@ -125,10 +226,7 @@ const App: React.FC = () => {
       case "askRoleDetail": {
         setRoleInfo((prev) => ({ ...prev, rawDescription: text }));
         setTimeout(() => {
-          addBotMessage([
-            "Okay, great. Tell me a bit more about the profile.",
-            "How many years of experience are you thinking?",
-          ]);
+          addBotMessage(["Okay, great. Tell me a bit more about the profile.", "How many years of experience are you thinking?"]);
           setStep("askYears");
         }, 400);
         break;
@@ -154,31 +252,79 @@ const App: React.FC = () => {
 
       case "askNonNeg": {
         setRoleInfo((prev) => ({ ...prev, nonNegotiables: text }));
-        setTimeout(() => {
-          const jobs = 42;
-          const candidates = 18;
-          let difficulty: RoleInfo["marketDifficulty"] = "competitive";
-          if (candidates > jobs * 2) difficulty = "easy";
-          if (candidates < jobs * 0.5) difficulty = "hard";
-          setRoleInfo((prev) => ({ ...prev, marketJobs: jobs, marketCandidates: candidates, marketDifficulty: difficulty }));
-          const difficultyText = difficulty === "easy" ? "looks relatively easy" : difficulty === "competitive" ? "looks competitive" : "looks hard";
+        setTimeout(async () => {
           addBotMessage(["Got it. Give me a second to do a quick supply vs demand check for that role in your area."]);
+
+          // Call market data API
+          const marketData = await fetchMarketData(roleInfo.rawDescription || text, "United States");
+          const jobs = marketData?.jobCount || 42;
+          const candidates = marketData?.candidateCount || 18;
+          let difficulty = marketData?.difficulty || "competitive";
+          const avgSalary = marketData?.avgSalary;
+          const demandTrend = marketData?.demandTrend;
+          const timeToFill = marketData?.timeToFill;
+          const topCompetitors = marketData?.topCompetitors || [];
+          const topSkills = marketData?.topSkills || [];
+
+          setRoleInfo((prev) => ({
+            ...prev,
+            marketJobs: jobs, marketCandidates: candidates, marketDifficulty: difficulty as any,
+            avgSalary, demandTrend, timeToFill, topCompetitors, topSkills,
+          }));
+
+          const difficultyText = difficulty === "easy" ? "looks relatively easy" : difficulty === "competitive" ? "looks competitive" : "looks hard";
+
+          const marketMsgs = [
+            `In the last month, there have been about ${jobs} jobs posted in your area for this type of role.`,
+            `There are only about ${candidates} candidates who really match what you described.`,
+            `This ${difficultyText} to fill.`,
+          ];
+          if (avgSalary) marketMsgs.push(`Average market salary is around $${avgSalary.toLocaleString()}.`);
+          if (demandTrend) marketMsgs.push(`Demand trend: ${demandTrend}.`);
+          if (timeToFill) marketMsgs.push(`Estimated time to fill: ${timeToFill} days.`);
+          if (topCompetitors.length > 0) marketMsgs.push(`Top competing employers: ${topCompetitors.slice(0, 3).join(", ")}.`);
+
           setTimeout(() => {
-            addBotMessage([
-              `In the last month, there have been about ${jobs} jobs posted in your area for this type of role.`,
-              `There are only about ${candidates} candidates who really match what you described.`,
-              `This ${difficultyText} to fill.`,
-            ]);
-            setTimeout(() => {
-              addBotMessage("For this hire, what matters most to you?", ["Speed", "Quality", "Staying within your salary range"]);
-              setStep("askPrimaryPriority");
-            }, 400);
+            addBotMessage(marketMsgs);
+
+            // LEAD MAGNET TOUCHPOINT 1: Offer to email full market report
+            if (!emailCaptured) {
+              setTimeout(() => {
+                addBotMessage("Want me to email you the full market intelligence report? It includes competitor data, salary benchmarks, and candidate profiles.", ["Yes, send the report", "No, let's keep going"]);
+                setStep("askPrimaryPriority");
+              }, 600);
+            } else {
+              setTimeout(() => {
+                addBotMessage("For this hire, what matters most to you?", ["Speed", "Quality", "Staying within your salary range"]);
+                setStep("askPrimaryPriority");
+              }, 400);
+            }
           }, 800);
         }, 400);
         break;
       }
 
       case "askPrimaryPriority": {
+        // Handle lead magnet response from market snapshot
+        if (text.toLowerCase().includes("yes") && text.toLowerCase().includes("report")) {
+          setLeadModalConfig({
+            capturePoint: "market_snapshot",
+            headline: "Where should we send the full report?",
+            description: "Includes detailed salary data, competitor analysis, candidate supply breakdown, and hiring timeline estimates.",
+          });
+          setShowLeadModal(true);
+          setTimeout(() => {
+            addBotMessage("For this hire, what matters most to you?", ["Speed", "Quality", "Staying within your salary range"]);
+          }, 500);
+          return;
+        }
+        if (text.toLowerCase().includes("no") && text.toLowerCase().includes("keep")) {
+          setTimeout(() => {
+            addBotMessage("For this hire, what matters most to you?", ["Speed", "Quality", "Staying within your salary range"]);
+          }, 400);
+          return;
+        }
+
         let primary: RoleInfo["primaryPriority"] | undefined;
         if (text.toLowerCase().startsWith("speed")) primary = "speed";
         if (text.toLowerCase().startsWith("quality")) primary = "quality";
@@ -235,7 +381,7 @@ const App: React.FC = () => {
           }, 400);
         } else {
           setTimeout(() => {
-            addBotMessage(["Totally fine. We can still run a strong search — but it may take longer, and the bar may need to flex a bit.", "To run this properly, we still have to cover the cost of doing it right.", "If we could deliver a strong performer for this role, would you be willing to pay a 25% fee on first-year base? We'd include a 90-day guarantee."], ["Yes", "No"]);
+            addBotMessage(["Totally fine. We can still run a strong search, but it may take longer, and the bar may need to flex a bit.", "To run this properly, we still have to cover the cost of doing it right.", "If we could deliver a strong performer for this role, would you be willing to pay a 25% fee on first-year base? We'd include a 90-day guarantee."], ["Yes", "No"]);
             setStep("competitorFee25");
           }, 400);
         }
@@ -262,8 +408,19 @@ const App: React.FC = () => {
           setRoleInfo((prev) => ({ ...prev, feeAccepted: 18 }));
           setTimeout(() => { proceedToSummary(18); }, 400);
         } else {
+          // LEAD MAGNET TOUCHPOINT 2: Fee walkaway - give them something valuable
           setTimeout(() => {
             addBotMessage(["Got it. It probably doesn't make sense for us to engage on this one if fee is the primary constraint.", "I can still share the market snapshot we just generated so you can see what you're up against."]);
+            if (!emailCaptured) {
+              setTimeout(() => {
+                setLeadModalConfig({
+                  capturePoint: "fee_walkaway",
+                  headline: "Take your market data with you",
+                  description: "We'll email you the full market intelligence report, competitor landscape, and salary benchmarks. No strings attached.",
+                });
+                setShowLeadModal(true);
+              }, 600);
+            }
             setStep("noFit");
           }, 400);
         }
@@ -300,6 +457,7 @@ const App: React.FC = () => {
 
       case "askEmail": {
         setRoleInfo((prev) => ({ ...prev, contactEmail: text }));
+        setEmailCaptured(true);
         setTimeout(() => {
           addBotMessage("What name should appear as the main contact on the agreement?");
           setStep("askContactName");
@@ -310,7 +468,7 @@ const App: React.FC = () => {
       case "askContactName": {
         setRoleInfo((prev) => ({ ...prev, contactName: text }));
         setTimeout(() => {
-          addBotMessage([`Perfect. I'm going to generate an agreement with these details and send it to ${text}.`, "Once it's signed, you'll hear from Taylor Hassell to kick things off — unless you'd prefer to schedule a call first."], ["Just send it", "Schedule a call instead"]);
+          addBotMessage([`Perfect. I'm going to generate an agreement with these details and send it to ${text}.`, "Once it's signed, you'll hear from Taylor Hassell to kick things off. Or schedule a call first."], ["Just send it", "Schedule a call instead"]);
           setStep("finalChoice");
         }, 400);
         break;
@@ -318,8 +476,14 @@ const App: React.FC = () => {
 
       case "finalChoice": {
         if (text.toLowerCase().startsWith("just")) {
-          setTimeout(() => {
-            addBotMessage(["Done. Check your inbox for the DocuSign.", "If you don't see it in a few minutes, reply here and we'll resend."]);
+          setTimeout(async () => {
+            // Call DocuSign API
+            const result = await sendDocuSign();
+            if (result?.status === "sent") {
+              addBotMessage(["Done. DocuSign has been sent to your inbox.", "If you don't see it in a few minutes, reply here and we'll resend."]);
+            } else {
+              addBotMessage(["Done. Our team will send the DocuSign agreement to your inbox shortly.", "If you don't see it in a few minutes, reply here and we'll resend."]);
+            }
             setStep("done");
           }, 400);
         } else if (text.toLowerCase().startsWith("schedule")) {
@@ -394,11 +558,19 @@ const App: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
             />
-                        <button type="submit" className="send-btn">{String.fromCharCode(0x21B5)}</button>
+            <button type="submit" className="send-btn">{String.fromCharCode(0x21B5)}</button>
           </form>
           <div className="helper-text">No forms. Just describe what you need.</div>
         </div>
       </div>
+      <LeadModal
+        show={showLeadModal}
+        capturePoint={leadModalConfig.capturePoint}
+        headline={leadModalConfig.headline}
+        description={leadModalConfig.description}
+        onSubmit={(email, name) => captureLeadAndDeliver(email, name, leadModalConfig.capturePoint)}
+        onDismiss={() => setShowLeadModal(false)}
+      />
     </div>
   );
 };
