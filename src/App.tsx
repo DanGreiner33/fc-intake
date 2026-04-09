@@ -170,7 +170,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (step === "intro" && messages.length === 0) {
-      addBotMessage(["Welcome to FullCircle Placements.", "Looks like you might be hiring \u2014 tell me what type of role you're thinking about."]);
+      addBotMessage(["Looks like you might be hiring \u2014 tell me what type of role you're thinking about."]);
       setStep("askRoleDetail");
     }
   }, []);
