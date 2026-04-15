@@ -64,14 +64,6 @@ const App: React.FC = () => {
     }
   };
 
-  const disableAllOptions = () => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.options ? { ...m, optionsDisabled: true } : m
-      )
-    );
-  };
-
   const addBotMessage = (text: string | string[], options?: string[]) => {
     const texts = Array.isArray(text) ? text : [text];
     setMessages((prev) => {
@@ -243,8 +235,11 @@ const App: React.FC = () => {
         );
         setStep("done");
 
+        // Tell parent page to dismiss the overlay
         setTimeout(() => {
-          window.location.href = "https://fullcircleplacements.com";
+          if (window.parent !== window) {
+            window.parent.postMessage("fc-chat-done", "*");
+          }
         }, 4000);
         break;
       }
