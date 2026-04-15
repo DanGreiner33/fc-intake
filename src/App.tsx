@@ -124,13 +124,13 @@ const App: React.FC = () => {
     return null;
   };
 
-  const sendLeadEmail = async (info: RoleInfo) => {
+  const sendLeadEmail = async (info: RoleInfo, chatTranscript: string) => {
     await callAPI("/api/lead-capture", {
       email: info.contactEmail,
       name: info.contactName,
       phone: info.contactPhone,
       capturePoint: "intake_complete",
-      roleContext: info,
+      roleContext: info,       transcript: chatTranscript,
     });
   };
 
@@ -228,7 +228,7 @@ const App: React.FC = () => {
         const updatedInfo = { ...roleInfo, contactPhone: phoneClean };
         setRoleInfo(updatedInfo);
 
-        await sendLeadEmail(updatedInfo);
+        const transcript = [...messages, { from: "user", text }].map((m: any) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`).join("\n"); await sendLeadEmail(updatedInfo, transcript);
 
         addBotMessage(
           "Perfect - thanks for that. Our team will be reaching out to you shortly. Talk soon!"
