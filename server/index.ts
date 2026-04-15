@@ -83,7 +83,7 @@ app.post("/api/lead-capture", async (req, res) => {
 
   // Build transcript text from messages array
   let transcriptText = "";
-  if (transcript && Array.isArray(transcript)) {
+  if (typeof transcript === "string") { transcriptText = transcript; } else if (transcript && Array.isArray(transcript)) {
     transcriptText = transcript
       .map((m: { from: string; text: string }) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`)
       .join("\n");
