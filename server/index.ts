@@ -11,7 +11,6 @@ app.use(express.json());
 
 // ============================================
 // GPT CONVERSATION API
-// Proxies to OpenAI for intelligent responses
 // ============================================
 app.post("/api/gpt", async (req, res) => {
   const { messages, roleContext } = req.body;
@@ -22,32 +21,24 @@ app.post("/api/gpt", async (req, res) => {
   }
 
   try {
-        const systemPrompt = `You are the FullCircle Placements intake assistant. Your only job is to collect information from employers about their hiring needs. Do NOT give hiring advice, salary recommendations, or recruiting tips.
-
+    const systemPrompt = `You are the FullCircle Placements intake assistant. Your only job is to collect information from employers about their hiring needs. Do NOT give hiring advice, salary recommendations, or recruiting tips.
 You must collect the following information during the conversation:
 - Company name
 - Job title
 - Contact name and email address
 - Phone number (optional)
 - Hiring plan (INTERNAL - never show classification labels to the user)
-
 CONVERSATION FLOW:
 1. First, greet the employer and ask what role they are looking to fill.
-2. As soon as the user mentions a job title or role (e.g. "CPA", "software engineer", "office manager"), immediately pivot to asking about their hiring urgency. Do NOT ask for a job description, role details, salary, location, skills, certifications, or experience requirements. Just acknowledge the role and move to hiring plan. Ask a natural question like "Are you looking to fill this as quickly as possible, or are you looking to find the perfect fit?" to determine their hiring plan. Internally classify the employer as one of: URGENTLY_HIRING, OPEN_FLEXIBLE, or BEST_FIT. IMPORTANT: Never mention the classification labels (URGENTLY_HIRING, OPEN_FLEXIBLE, BEST_FIT) to the user. Instead respond naturally, for example: "Great, we will focus on finding the best fit for this role" or "Got it, we will prioritize speed and get candidates in front of you quickly."
+2. As soon as the user mentions a job title or role, immediately pivot to asking about their hiring urgency.
 3. After the hiring plan, collect their contact info: name, email, and optionally phone number.
-4. Once you have all the required info, summarize what you heard and let them know your team will follow up. Always end your final thank you message with the exact sentence: "You will be redirected to our website."
-
+4. Once you have all the required info, summarize what you heard and let them know your team will follow up.
 Rules:
-- IMPORTANT: Before asking for any piece of information, carefully review what the user has ALREADY provided in their previous messages. If the user included details like job title, company name, or any other required field in an earlier message, acknowledge that information and do NOT ask for it again. Only ask about the specific pieces of information that are still missing.
-- Ask only ONE question at a time. Do not ask multiple questions in one message.
+- Ask only ONE question at a time.
 - Keep responses concise (1-2 sentences max).
 - Be friendly and professional, but stay focused on collecting data.
 - Do NOT offer opinions, advice, or market insights.
-- Do NOT suggest salary ranges or comment on whether their budget is competitive.
-- Do NOT ask for job descriptions, role details, salary, location, skills, or experience. Your job is only to get the role title, hiring plan, and contact info.
 - If the visitor is not hiring or is a job seeker, politely redirect them to the careers page.
-- Never make up data or stats. If you do not know something, say so.
-
 Current context about the role being discussed:
 ${JSON.stringify(roleContext, null, 2)}
 Remember: You are collecting data, not giving advice. Stay on task.`;
@@ -70,11 +61,9 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
     });
 
     const data = await response.json();
-
     if (!response.ok) {
       return res.status(response.status).json({ error: data.error?.message || "OpenAI API error" });
     }
-
     res.json({ reply: data.choices[0].message.content });
   } catch (err) {
     console.error("GPT API error:", err);
@@ -83,13 +72,60 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
 });
 
 // ============================================
+// LEAD CAPTURE API
+// Sends lead data + transcript to webhook
+// ============================================
+app.post("/api/lead-capture", async (req, res) => {
+  const { email, name, phone, capturePoint, roleContext, transcript } = req.body;
+  const webhookUrl = process.env.LEAD_WEBHOOK_URL;
+
+  console.log("Lead captured:", { name, email, phone, roleContext });
+
+  // Build transcript text from messages array
+  let transcriptText = "";
+  if (transcript && Array.isArray(transcript)) {
+    transcriptText = transcript
+      .map((m: { from: string; text: string }) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`)
+      .join("\n");
+  }
+
+  const payload = {
+    name: name || "Unknown",
+    email: email || "",
+    phone: phone || "",
+    notifyEmail: "lsmith@fcplacements.com",
+    capturePoint: capturePoint || "intake_complete",
+    role: roleContext?.rawDescription || "",
+    primaryPriority: roleContext?.primaryPriority || "",
+    secondaryPriority: roleContext?.secondaryPriority || "",
+    transcript: transcriptText,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (webhookUrl) {
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      console.log("Webhook sent successfully");
+    } catch (err) {
+      console.error("Webhook error:", err);
+    }
+  } else {
+    console.warn("No LEAD_WEBHOOK_URL configured - lead data logged only");
+  }
+
+  res.json({ status: "captured" });
+});
+
+// ============================================
 // SERVE FRONTEND (Vite build output)
 // ============================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 app.use(express.static(path.join(__dirname, "../dist")));
-
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "../dist/index.html"));
 });
