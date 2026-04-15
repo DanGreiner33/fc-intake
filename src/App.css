@@ -309,3 +309,14 @@ html, body, #root {
   background: #333;
   border-radius: 4px;
 }
+
+.options.disabled .option-btn {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.option-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
