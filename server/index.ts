@@ -10,70 +10,6 @@ app.use(cors());
 app.use(express.json());
 
 // ============================================
-// GPT CONVERSATION API
-// ============================================
-app.post("/api/gpt", async (req, res) => {
-  const { messages, roleContext } = req.body;
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: "OPENAI_API_KEY not configured" });
-  }
-
-  try {
-    const systemPrompt = `You are the FullCircle Placements intake assistant. Your only job is to collect information from employers about their hiring needs. Do NOT give hiring advice, salary recommendations, or recruiting tips.
-You must collect the following information during the conversation:
-- Company name
-- Job title
-- Contact name and email address
-- Phone number (optional)
-- Hiring plan (INTERNAL - never show classification labels to the user)
-CONVERSATION FLOW:
-1. First, greet the employer and ask what role they are looking to fill.
-2. As soon as the user mentions a job title or role, immediately pivot to asking about their hiring urgency.
-3. After the hiring plan, collect their contact info: name, email, and optionally phone number.
-4. Once you have all the required info, summarize what you heard and let them know your team will follow up.
-Rules:
-- Ask only ONE question at a time.
-- Keep responses concise (1-2 sentences max).
-- Be friendly and professional, but stay focused on collecting data.
-- Do NOT offer opinions, advice, or market insights.
-- If the visitor is not hiring or is a job seeker, politely redirect them to the careers page.
-Current context about the role being discussed:
-${JSON.stringify(roleContext, null, 2)}
-Remember: You are collecting data, not giving advice. Stay on task.`;
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        temperature: 0.7,
-        max_tokens: 300,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || "OpenAI API error" });
-    }
-
-    res.json({ reply: data.choices[0].message.content });
-  } catch (err) {
-    console.error("GPT API error:", err);
-    res.status(500).json({ error: "Failed to get response from GPT" });
-  }
-});
-
-// ============================================
 // LEAD CAPTURE API
 // Sends lead data + transcript via WordPress REST API
 // ============================================
@@ -82,7 +18,6 @@ app.post("/api/lead-capture", async (req, res) => {
 
   console.log("Lead captured:", { name, email, phone, roleContext });
 
-  // Build transcript text from messages array
   let transcriptText = "";
   if (typeof transcript === "string") {
     transcriptText = transcript;
@@ -98,22 +33,28 @@ app.post("/api/lead-capture", async (req, res) => {
     phone: phone || "",
     notifyEmail: "lsmith@fcplacements.com",
     capturePoint: capturePoint || "intake_complete",
-    role: roleContext?.rawDescription || "",
-    primaryPriority: roleContext?.primaryPriority || "",
-    secondaryPriority: roleContext?.secondaryPriority || "",
+    position: roleContext?.position || "",
+    priority1: roleContext?.priority1 || "",
+    priority2: roleContext?.priority2 || "",
+    companyName: roleContext?.companyName || "",
+    signorName: roleContext?.signorName || "",
+    signorTitle: roleContext?.signorTitle || "",
+    agreementSent: roleContext?.agreementSent || false,
     transcript: transcriptText,
     timestamp: new Date().toISOString(),
   };
 
-  // Send email via WordPress REST API
   try {
     const emailBody = `<h2>New Lead from FullCircle Intake Chatbot</h2>
 <p><strong>Name:</strong> ${payload.name}</p>
 <p><strong>Email:</strong> ${payload.email}</p>
 <p><strong>Phone:</strong> ${payload.phone}</p>
-<p><strong>Role:</strong> ${payload.role}</p>
-<p><strong>Primary Priority:</strong> ${payload.primaryPriority}</p>
-<p><strong>Secondary Priority:</strong> ${payload.secondaryPriority}</p>
+<p><strong>Position:</strong> ${payload.position}</p>
+<p><strong>Priority 1:</strong> ${payload.priority1}</p>
+<p><strong>Priority 2:</strong> ${payload.priority2}</p>
+<p><strong>Company:</strong> ${payload.companyName}</p>
+<p><strong>Agreement Sent:</strong> ${payload.agreementSent ? "Yes" : "No"}</p>
+<p><strong>Capture Point:</strong> ${payload.capturePoint}</p>
 <p><strong>Timestamp:</strong> ${payload.timestamp}</p>
 <hr>
 <h3>Chat Transcript</h3>
@@ -121,13 +62,11 @@ app.post("/api/lead-capture", async (req, res) => {
 
     const wpResponse = await fetch("https://fullcircleplacements.com/wp-json/chatbot/v1/send-email", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         secret: "fcp_chatbot_2024_secret",
         to: "lsmith@fcplacements.com",
-        subject: `New Intake Lead: ${payload.role} - ${payload.name}`,
+        subject: `New Intake Lead: ${payload.position} - ${payload.name}`,
         body: emailBody,
       }),
     });
@@ -143,6 +82,25 @@ app.post("/api/lead-capture", async (req, res) => {
   }
 
   res.json({ status: "captured" });
+});
+
+// ============================================
+// SEND AGREEMENT API (DocuSign placeholder)
+// ============================================
+app.post("/api/send-agreement", async (req, res) => {
+  const { companyName, signorName, signorTitle, signerEmail, position } = req.body;
+
+  console.log("Agreement request:", { companyName, signorName, signorTitle, signerEmail, position });
+
+  // TODO: Integrate DocuSign API here
+  // - Use DocuSign Envelopes:create endpoint
+  // - Populate template merge fields: Signer Name, Signer Title, Company Name, Signer Email, Role, Date
+  // - Set up webhook for signed notification
+
+  // For now, log and acknowledge
+  console.log("DocuSign integration pending - agreement data logged");
+
+  res.json({ status: "agreement_queued", message: "DocuSign integration pending" });
 });
 
 // ============================================
