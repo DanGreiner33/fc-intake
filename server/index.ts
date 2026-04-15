@@ -77,7 +77,7 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
 // ============================================
 app.post("/api/lead-capture", async (req, res) => {
   const { email, name, phone, capturePoint, roleContext, transcript } = req.body;
-  const smtpHost = process.env.SMTP_HOST || "smtp.office365.com"; const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10); const smtpUser = process.env.SMTP_USER || ""; const smtpPass = process.env.SMTP_PASS || "";
+  const smtpHost = process.env.SMTP_HOST || "smtpout.secureserver.net"; const smtpPort = parseInt(process.env.SMTP_PORT || "465", 10); const smtpUser = process.env.SMTP_USER || ""; const smtpPass = process.env.SMTP_PASS || "";
 
   console.log("Lead captured:", { name, email, phone, roleContext });
 
@@ -108,7 +108,7 @@ app.post("/api/lead-capture", async (req, res) => {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
           port: smtpPort,
-          secure: false,
+          secure: true,
           auth: { user: smtpUser, pass: smtpPass },
         });
 
@@ -123,7 +123,7 @@ app.post("/api/lead-capture", async (req, res) => {
           `--- Chat Transcript ---\n${transcriptText}`;
 
         await transporter.sendMail({
-          from: smtpUser,
+          from: "wordpress@fullcircleplacements.com",
           to: "lsmith@fcplacements.com",
           subject: `New Intake Lead: ${payload.role} - ${payload.name}`,
           text: emailBody,
