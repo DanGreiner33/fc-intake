@@ -17,6 +17,7 @@ type Message = {
   from: "bot" | "user";
   text: string;
   options?: string[];
+  optionsDisabled?: boolean;
 };
 
 type Step =
@@ -39,7 +40,6 @@ const App: React.FC = () => {
   const [step, setStep] = useState<Step>("askRole");
   const [roleInfo, setRoleInfo] = useState<RoleInfo>({});
   const [nextMessageId, setNextMessageId] = useState(1);
-  const [pendingOptions, setPendingOptions] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -64,31 +64,45 @@ const App: React.FC = () => {
     }
   };
 
+  const disableAllOptions = () => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.options ? { ...m, optionsDisabled: true } : m
+      )
+    );
+  };
+
   const addBotMessage = (text: string | string[], options?: string[]) => {
     const texts = Array.isArray(text) ? text : [text];
     setMessages((prev) => {
-      const newMsgs = [...prev];
+      const updated = prev.map((m) =>
+        m.options ? { ...m, optionsDisabled: true } : m
+      );
       texts.forEach((t, i) => {
-        newMsgs.push({
-          id: nextMessageId + newMsgs.length,
+        updated.push({
+          id: nextMessageId + updated.length,
           from: "bot",
           text: t,
           options: i === texts.length - 1 ? options : undefined,
+          optionsDisabled: false,
         });
       });
-      return newMsgs;
+      return updated;
     });
     setNextMessageId((id) => id + (Array.isArray(text) ? text.length : 1));
-    if (options && options.length > 0) setPendingOptions(options);
-    else setPendingOptions(null);
   };
 
   const addUserMessage = (text: string) => {
-    setMessages((prev) => [...prev, { id: nextMessageId, from: "user", text }]);
+    setMessages((prev) => {
+      const updated = prev.map((m) =>
+        m.options ? { ...m, optionsDisabled: true } : m
+      );
+      updated.push({ id: nextMessageId, from: "user", text });
+      return updated;
+    });
     setNextMessageId((id) => id + 1);
   };
 
-  // Initial message
   useEffect(() => {
     if (step === "askRole" && messages.length === 0) {
       addBotMessage("What position are you looking to hire for?");
@@ -103,7 +117,6 @@ const App: React.FC = () => {
   };
 
   const handleOptionClick = (option: string) => {
-    setPendingOptions(null);
     handleUserInput(option);
   };
 
@@ -195,7 +208,6 @@ const App: React.FC = () => {
       }
 
       case "askNameEmail": {
-        // Try to extract name and email from the message
         const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
         const email = emailMatch ? emailMatch[0] : "";
         const nameText = text.replace(email, "").replace(/[,;]/g, " ").trim();
@@ -215,7 +227,7 @@ const App: React.FC = () => {
       }
 
       case "askPhone": {
-        const phoneClean = text.replace(/[^0-9+()-\s]/g, "").trim();
+        const phoneClean = text.replace(/[^0-9+()\-\s]/g, "").trim();
         if (phoneClean.length < 7) {
           addBotMessage("That doesn't look like a phone number - mind trying again?");
           setIsLoading(false);
@@ -224,7 +236,6 @@ const App: React.FC = () => {
         const updatedInfo = { ...roleInfo, contactPhone: phoneClean };
         setRoleInfo(updatedInfo);
 
-        // Send the lead
         await sendLeadEmail(updatedInfo);
 
         addBotMessage(
@@ -232,7 +243,6 @@ const App: React.FC = () => {
         );
         setStep("done");
 
-        // Redirect after a few seconds
         setTimeout(() => {
           window.location.href = "https://fullcircleplacements.com";
         }, 4000);
@@ -257,12 +267,13 @@ const App: React.FC = () => {
             <div key={m.id} className={`message ${m.from}`}>
               <div className="bubble">{m.text}</div>
               {m.from === "bot" && m.options && (
-                <div className="options">
+                <div className={`options${m.optionsDisabled ? " disabled" : ""}`}>
                   {m.options.map((opt) => (
                     <button
                       key={opt}
                       className="option-btn"
-                      onClick={() => handleOptionClick(opt)}
+                      disabled={m.optionsDisabled}
+                      onClick={() => !m.optionsDisabled && handleOptionClick(opt)}
                     >
                       {opt}
                     </button>
