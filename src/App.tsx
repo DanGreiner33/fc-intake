@@ -240,7 +240,7 @@ const App: React.FC = () => {
           if (window.parent !== window) {
             window.parent.postMessage("fc-chat-done", "*");
           }
-        }, 4000);
+        }, 2500);
         break;
       }
 
