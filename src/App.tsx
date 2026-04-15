@@ -68,7 +68,7 @@ const SMART_SUMMARIES: Record<string, string> = {
   "cost-quality": "You want the right person without overpaying \u2014 that\u2019s the sweet spot we work in. We don\u2019t send warm bodies from a job board. Might take a few extra weeks, but you\u2019ll get a strong candidate at a fair price.",
   "speed-cost": "ASAP hire at a reasonable rate \u2014 we can do that. We\u2019ll hit the ground running with candidates already in our network. You might not get every box checked, but you\u2019ll have someone solid in front of you quickly.",
   "speed-quality": "You want someone great, and you want them now. Expect strong candidates fast \u2014 be ready to move when you see a good one. Budget flexibility helps here.",
-  "quality-cost": "You\u2019re prioritizing the right hire over speed and want to be smart about comp. Typically a 4\u20136 week process, but you\u2019ll see candidates you\u2019re actually excited about.",
+  "quality-cost": "Right hire without overspending or rushing \u2014 that\u2019s a 4\u20136 week process typically, but you\u2019ll see candidates you\u2019re actually excited about.",
   "quality-speed": "Best person possible, sooner rather than later \u2014 that\u2019s a full-court press. We go deep on sourcing and move fast on vetting. Budget should reflect top of market.",
 };
 
@@ -229,7 +229,7 @@ Sending to: ${info.contactEmail || ""}`;
         setRoleInfo((prev) => ({ ...prev, priority1: primary }));
         const remaining = getRemainingOptions(primary);
         addBotMessage(
-          "And if you had to pick a second priority, what would it be?",
+          "Great \u2014 what\u2019s second most important?",
           remaining.map((r) => r.desc)
         );
         setStep("askSecondary");
