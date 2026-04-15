@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "url"; import nodemailer from "nodemailer";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -77,7 +77,7 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
 // ============================================
 app.post("/api/lead-capture", async (req, res) => {
   const { email, name, phone, capturePoint, roleContext, transcript } = req.body;
-  const webhookUrl = process.env.LEAD_WEBHOOK_URL;
+  const smtpHost = process.env.SMTP_HOST || "smtp.office365.com"; const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10); const smtpUser = process.env.SMTP_USER || ""; const smtpPass = process.env.SMTP_PASS || "";
 
   console.log("Lead captured:", { name, email, phone, roleContext });
 
@@ -102,20 +102,39 @@ app.post("/api/lead-capture", async (req, res) => {
     timestamp: new Date().toISOString(),
   };
 
-  if (webhookUrl) {
-    try {
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      console.log("Webhook sent successfully");
-    } catch (err) {
-      console.error("Webhook error:", err);
+    // Send email directly via nodemailer
+    if (smtpUser && smtpPass) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: false,
+          auth: { user: smtpUser, pass: smtpPass },
+        });
+
+        const emailBody = `New Lead from FullCircle Intake Chatbot\n\n` +
+          `Name: ${payload.name}\n` +
+          `Email: ${payload.email}\n` +
+          `Phone: ${payload.phone}\n` +
+          `Role: ${payload.role}\n` +
+          `Primary Priority: ${payload.primaryPriority}\n` +
+          `Secondary Priority: ${payload.secondaryPriority}\n` +
+          `Timestamp: ${payload.timestamp}\n\n` +
+          `--- Chat Transcript ---\n${transcriptText}`;
+
+        await transporter.sendMail({
+          from: smtpUser,
+          to: "lsmith@fcplacements.com",
+          subject: `New Intake Lead: ${payload.role} - ${payload.name}`,
+          text: emailBody,
+        });
+        console.log("Email sent successfully");
+      } catch (err) {
+        console.error("Email send error:", err);
+      }
+    } else {
+      console.warn("SMTP credentials not configured - lead data logged only");
     }
-  } else {
-    console.warn("No LEAD_WEBHOOK_URL configured - lead data logged only");
-  }
 
   res.json({ status: "captured" });
 });
