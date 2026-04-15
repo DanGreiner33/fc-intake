@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url"; import nodemailer from "nodemailer";
+import { fileURLToPath } from "url";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -61,9 +61,11 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
     });
 
     const data = await response.json();
+
     if (!response.ok) {
       return res.status(response.status).json({ error: data.error?.message || "OpenAI API error" });
     }
+
     res.json({ reply: data.choices[0].message.content });
   } catch (err) {
     console.error("GPT API error:", err);
@@ -73,17 +75,18 @@ Remember: You are collecting data, not giving advice. Stay on task.`;
 
 // ============================================
 // LEAD CAPTURE API
-// Sends lead data + transcript to webhook
+// Sends lead data + transcript via WordPress REST API
 // ============================================
 app.post("/api/lead-capture", async (req, res) => {
   const { email, name, phone, capturePoint, roleContext, transcript } = req.body;
-  const smtpHost = process.env.SMTP_HOST || "smtpout.secureserver.net"; const smtpPort = parseInt(process.env.SMTP_PORT || "465", 10); const smtpUser = process.env.SMTP_USER || ""; const smtpPass = process.env.SMTP_PASS || "";
 
   console.log("Lead captured:", { name, email, phone, roleContext });
 
   // Build transcript text from messages array
   let transcriptText = "";
-  if (typeof transcript === "string") { transcriptText = transcript; } else if (transcript && Array.isArray(transcript)) {
+  if (typeof transcript === "string") {
+    transcriptText = transcript;
+  } else if (transcript && Array.isArray(transcript)) {
     transcriptText = transcript
       .map((m: { from: string; text: string }) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`)
       .join("\n");
@@ -102,39 +105,42 @@ app.post("/api/lead-capture", async (req, res) => {
     timestamp: new Date().toISOString(),
   };
 
-    // Send email directly via nodemailer
-    if (smtpUser && smtpPass) {
-      try {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: true,
-          auth: { user: smtpUser, pass: smtpPass },
-        });
+  // Send email via WordPress REST API
+  try {
+    const emailBody = `<h2>New Lead from FullCircle Intake Chatbot</h2>
+<p><strong>Name:</strong> ${payload.name}</p>
+<p><strong>Email:</strong> ${payload.email}</p>
+<p><strong>Phone:</strong> ${payload.phone}</p>
+<p><strong>Role:</strong> ${payload.role}</p>
+<p><strong>Primary Priority:</strong> ${payload.primaryPriority}</p>
+<p><strong>Secondary Priority:</strong> ${payload.secondaryPriority}</p>
+<p><strong>Timestamp:</strong> ${payload.timestamp}</p>
+<hr>
+<h3>Chat Transcript</h3>
+<pre>${transcriptText}</pre>`;
 
-        const emailBody = `New Lead from FullCircle Intake Chatbot\n\n` +
-          `Name: ${payload.name}\n` +
-          `Email: ${payload.email}\n` +
-          `Phone: ${payload.phone}\n` +
-          `Role: ${payload.role}\n` +
-          `Primary Priority: ${payload.primaryPriority}\n` +
-          `Secondary Priority: ${payload.secondaryPriority}\n` +
-          `Timestamp: ${payload.timestamp}\n\n` +
-          `--- Chat Transcript ---\n${transcriptText}`;
+    const wpResponse = await fetch("https://fullcircleplacements.com/wp-json/chatbot/v1/send-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        secret: "fcp_chatbot_2024_secret",
+        to: "lsmith@fcplacements.com",
+        subject: `New Intake Lead: ${payload.role} - ${payload.name}`,
+        body: emailBody,
+      }),
+    });
 
-        await transporter.sendMail({
-          from: "wordpress@fullcircleplacements.com",
-          to: "lsmith@fcplacements.com",
-          subject: `New Intake Lead: ${payload.role} - ${payload.name}`,
-          text: emailBody,
-        });
-        console.log("Email sent successfully");
-      } catch (err) {
-        console.error("Email send error:", err);
-      }
+    const wpData = await wpResponse.json();
+    if (wpResponse.ok) {
+      console.log("Email sent successfully via WordPress");
     } else {
-      console.warn("SMTP credentials not configured - lead data logged only");
+      console.error("WordPress email error:", wpData);
     }
+  } catch (err) {
+    console.error("Email send error:", err);
+  }
 
   res.json({ status: "captured" });
 });
@@ -144,7 +150,9 @@ app.post("/api/lead-capture", async (req, res) => {
 // ============================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 app.use(express.static(path.join(__dirname, "../dist")));
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "../dist/index.html"));
 });
