@@ -122,6 +122,12 @@ app.post("/api/chat", async (req, res) => {
       parsed.nextStep = "askPrimary";
       parsed.options = allPriorityOpts;
             parsed.extractedData.position = lastMsg;
+                  // Fee inquiry detection
+      const feeKeywords = ["fee", "cost", "price", "pricing", "charge", "rate", "how much", "what do you charge", "percentage", "markup"];
+      if (feeKeywords.some(kw => lastMsgLower.includes(kw))) {
+        parsed.extractedData.feeInquiry = true;
+        parsed.message = "Great question — let me get some details first so I can give you the right answer. When it comes to hiring, what matters most to you right now?";
+      }
     } else if (step === "askPrimary") {
       parsed.nextStep = "askSecondary";
       const lastUserMsg = messages && messages.length > 0 ? messages[messages.length - 1].text.toLowerCase() : "";
@@ -152,9 +158,11 @@ app.post("/api/chat", async (req, res) => {
       const summaryKey = `${p1}_${p2}`;
       const summary = summaryMap[summaryKey];
       if (summary) {
-        parsed.message = summary + "\n\nWhat\u2019s the best name and email to reach you at?";
+                const feeNote = roleInfo?.feeInquiry ? "\n\nAs for our fee structure, it's 20% of the first year's salary." : "";
+          parsed.message = summary + feeNote + "\n\nWhat\u2019s the best name and email to reach you at?";
       } else {
-        parsed.message = "Got it! What\u2019s the best name and email to reach you at?";
+                const feeNote2 = roleInfo?.feeInquiry ? " As for our fee structure, it's 20% of the first year's salary." : "";
+          parsed.message = "Got it!" + feeNote2 + " What\u2019s the best name and email to reach you at?";
       }
     } else if (step === "askNameEmail") {
       parsed.nextStep = "askPhone";

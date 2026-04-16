@@ -14,6 +14,7 @@ type RoleInfo = {
   signorName?: string;
   signorTitle?: string;
   agreementSent?: boolean;
+    feeInquiry?: boolean;
 };
 
 type Message = {
@@ -171,6 +172,7 @@ const App: React.FC = () => {
       if (extracted.companyName) updatedInfo.companyName = extracted.companyName;
       if (extracted.signorName) updatedInfo.signorName = extracted.signorName;
       if (extracted.signorTitle) updatedInfo.signorTitle = extracted.signorTitle;
+            if (extracted.feeInquiry) updatedInfo.feeInquiry = extracted.feeInquiry;
       roleInfoRef.current = updatedInfo; setRoleInfo(updatedInfo);
 
       const options = aiResponse.options || undefined;
