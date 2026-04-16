@@ -110,29 +110,46 @@ app.post("/api/chat", async (req, res) => {
     }
 
 
-        // Server-side step override to ensure correct transitions
-    if (step === "askAgreement" && parsed.nextStep !== "askCompanyName") {
-      parsed.nextStep = "done";
-    }
-    if (step === "confirmAgreement" && parsed.nextStep !== "correcting") {
-      parsed.nextStep = "done";
-    }
-        // Force options for steps that require them
-    const nextStepVal = parsed.nextStep || step;
-    if (nextStepVal === "askAgreement" && (!parsed.options || parsed.options.length === 0)) {
-      parsed.options = ["Yes, send it over", "I'll wait until we talk first"];
-    }
-        if (nextStepVal === "askPrimary" && (!parsed.options || parsed.options.length === 0)) {
-      parsed.options = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
-    }
-            if (step === "askPrimary" && nextStepVal === "askSecondary" && (!parsed.options || parsed.options.length === 0)) {
-      const allOpts = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
+            // Server-side deterministic step and options overrides
+    const allPriorityOpts = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
+    const agreementOpts = ["Yes, send it over", "I'll wait until we talk first"];
+
+    if (step === "askRole") {
+      parsed.nextStep = "askPrimary";
+      parsed.options = allPriorityOpts;
+    } else if (step === "askPrimary") {
+      parsed.nextStep = "askSecondary";
       const lastUserMsg = messages && messages.length > 0 ? messages[messages.length - 1].text.toLowerCase() : "";
-      const p1 = lastUserMsg.includes("cost") ? "cost" : lastUserMsg.includes("speed") ? "speed" : lastUserMsg.includes("quality") ? "quality" : (roleInfo && roleInfo.priority1) || "";
-      parsed.options = allOpts.filter(o => !o.toLowerCase().startsWith(p1.toLowerCase()));
-    }
-        if (step === "askPhone" && nextStepVal === "askAgreement" && (!parsed.options || parsed.options.length === 0)) {
-      parsed.options = ["Yes, send it over", "I'll wait until we talk first"];
+      const picked = lastUserMsg.includes("cost") ? "cost" : lastUserMsg.includes("speed") ? "speed" : lastUserMsg.includes("quality") ? "quality" : "";
+      parsed.options = allPriorityOpts.filter(o => !o.toLowerCase().startsWith(picked));
+    } else if (step === "askSecondary") {
+      parsed.nextStep = "askNameEmail";
+      parsed.options = null;
+    } else if (step === "askNameEmail") {
+      parsed.nextStep = "askPhone";
+      parsed.options = null;
+    } else if (step === "askPhone") {
+      parsed.nextStep = "askAgreement";
+      parsed.options = agreementOpts;
+    } else if (step === "askAgreement") {
+      if (parsed.nextStep === "askCompanyName") {
+        parsed.options = null;
+      } else {
+        parsed.nextStep = "done";
+        parsed.options = null;
+      }
+    } else if (step === "askCompanyName") {
+      parsed.nextStep = "askSignor";
+      parsed.options = null;
+    } else if (step === "askSignor") {
+      parsed.nextStep = "confirmAgreement";
+      if (!parsed.options || parsed.options.length === 0) {
+        parsed.options = ["Looks good \u2014 send it", "Let me correct something"];
+      }
+    } else if (step === "confirmAgreement") {
+      if (parsed.nextStep !== "correcting") {
+        parsed.nextStep = "done";
+      }
     }
     res.json({
       message: parsed.message || "Could you tell me more?",
