@@ -64,8 +64,11 @@ html, body, #root {
   gap: 12px;
   min-height: 200px;
   max-height: 55vh;
-  scrollbar-width: thin;
-  scrollbar-color: #333 transparent;
+    scrollbar-width: none;
+}
+
+.messages::-webkit-scrollbar {
+  display: none;
 }
 
 .msg {
