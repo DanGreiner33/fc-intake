@@ -54,9 +54,9 @@ extractedData fields you should extract when available:
 - signorTitle: signor's title
 
 PRIORITY OPTIONS (use these exact labels):
-- "Cost - market rate or below"
-- "Speed - need someone ASAP"
-- "Quality - best fit, even if it takes time"
+- "Cost - Market rate or below"
+- "Speed - Need someone ASAP"
+- "Quality - Best fit, even if it takes time"
 
 IMPORTANT RULES:
 - NEVER list the options in your message text. The options array will be rendered as clickable buttons by the frontend. Your message should only contain your conversational response, not a numbered or bulleted list of the options.
@@ -111,7 +111,7 @@ app.post("/api/chat", async (req, res) => {
 
 
             // Server-side deterministic step and options overrides
-    const allPriorityOpts = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
+    const allPriorityOpts = ["Cost - Market rate or below", "Speed - Need someone ASAP", "Quality - Best fit, even if it takes time"];
     const agreementOpts = ["Yes, send it over", "I'll wait until we talk first"];
 
         const lastMsg = messages && messages.length > 0 ? messages[messages.length - 1].text : "";
