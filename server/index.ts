@@ -27,7 +27,7 @@ INTAKE FLOW:
 3. askSecondary: User picks their #2 priority. Give a brief, smart 1-2 sentence take on their priority combo and what to expect. Then ask for their name and email so your team can follow up.
 4. askNameEmail: User provides name and email. Confirm you got it and ask for a phone number.
 5. askPhone: User provides phone. Confirm everything, mention someone will be in touch shortly. Then offer to send over the standard recruiting agreement, with options "Yes, send it over" and "I'll wait until we talk first".
-6. askAgreement: If yes, ask for company name. If no, wrap up warmly.
+6. askAgreement: If yes, ask for company name (nextStep: askCompanyName). If no, wrap up warmly and set nextStep to "done".
 7. askCompanyName: User gives company name. Ask who will be signing (full legal name and title).
 8. askSignor: User gives signor info. Show a confirmation card with company, signor, and email. Offer options "Looks good \u2014 send it" and "Let me correct something".
 9. confirmAgreement: If confirmed, say the agreement is on its way. If correcting, ask which field.
@@ -68,6 +68,7 @@ IMPORTANT RULES:
 - For the askSecondary step, you MUST include exactly 2 remaining options in the options array (exclude the one they picked as priority1). NEVER return null options for this step. - CRITICAL: For steps askRole, askPrimary, askSecondary, askAgreement, askSignor, and confirmAgreement, the options array must NEVER be null. Always provide clickable options for these steps.
 - When extracting email, look for standard email patterns.
 - When extracting phone, accept various formats.
+- CRITICAL: When the user DECLINES the agreement at askAgreement step, you MUST set nextStep to "done". When the user CONFIRMS at confirmAgreement step, you MUST set nextStep to "done".
 - If the user says something unexpected, gently guide them back to the current step.`;
 
 // ============================================
