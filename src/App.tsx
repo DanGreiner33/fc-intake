@@ -125,6 +125,16 @@ const App: React.FC = () => {
     });
   };
 
+  const redirectWhenDone = () => {
+    setTimeout(() => {
+      if (window.parent !== window) {
+        window.parent.postMessage("fc-chat-done", "*");
+      } else {
+        window.location.href = "https://fullcircleplacements.com";
+      }
+    }, 2500);
+  };
+
   const getTranscript = (extraMsg?: { from: string; text: string }) => {
     const allMsgs = extraMsg ? [...messages, extraMsg] : messages;
     return allMsgs.map((m: any) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`).join("\n");
@@ -135,11 +145,9 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Build messages array for AI
       const allMessages = [...messages, { id: 0, from: "user" as const, text }];
       const chatHistory = allMessages.map((m) => ({ from: m.from, text: m.text }));
 
-      // Call AI endpoint
       const aiResponse = await callAPI("/api/chat", {
         messages: chatHistory,
         step,
@@ -152,7 +160,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // Update roleInfo with extracted data
       const extracted = aiResponse.extractedData || {};
       const updatedInfo = { ...roleInfo };
       if (extracted.position) updatedInfo.position = extracted.position;
@@ -166,23 +173,20 @@ const App: React.FC = () => {
       if (extracted.signorTitle) updatedInfo.signorTitle = extracted.signorTitle;
       setRoleInfo(updatedInfo);
 
-      // Display the AI response
       const options = aiResponse.options || undefined;
       addBotMessage(aiResponse.message, options);
 
-      // Update step
       const nextStep = aiResponse.nextStep || step;
       setStep(nextStep as Step);
 
-      // Handle side effects based on step transitions
+      // Phone collected - send lead email
       if (nextStep === "askAgreement" && step === "askPhone") {
-        // Phone just collected - send lead email
         const transcript = getTranscript({ from: "user", text });
         await sendLeadEmail(updatedInfo, transcript);
       }
 
+      // Agreement confirmed - send agreement + updated lead email + redirect
       if (nextStep === "done" && step === "confirmAgreement") {
-        // Agreement confirmed - send agreement + updated lead email
         const finalInfo = { ...updatedInfo, agreementSent: true };
         setRoleInfo(finalInfo);
         const transcript = getTranscript({ from: "user", text });
@@ -194,20 +198,14 @@ const App: React.FC = () => {
           position: finalInfo.position,
         });
         await sendLeadEmail(finalInfo, transcript);
-        setTimeout(() => {
-          if (window.parent !== window) {
-            window.parent.postMessage("fc-chat-done", "*");
-          }
-        }, 2500);
+        redirectWhenDone();
       }
 
+      // User declined agreement - send lead email + redirect
       if (nextStep === "done" && step === "askAgreement") {
-        // User declined agreement - wrap up
-        setTimeout(() => {
-          if (window.parent !== window) {
-            window.parent.postMessage("fc-chat-done", "*");
-          }
-        }, 2500);
+        const transcript = getTranscript({ from: "user", text });
+        await sendLeadEmail(updatedInfo, transcript);
+        redirectWhenDone();
       }
 
     } catch (err) {
