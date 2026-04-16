@@ -135,9 +135,8 @@ const App: React.FC = () => {
     }, 2500);
   };
 
-  const getTranscript = (extraMsg?: { from: string; text: string }) => {
-    const allMsgs = extraMsg ? [...messages, extraMsg] : messages;
-    return allMsgs.map((m: any) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`).join("\n");
+  const getTranscript = (msgArray: { from: string; text: string }[]) => {
+    return msgArray.map((m) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`).join("\n");
   };
 
   const handleUserInput = async (text: string) => {
@@ -181,7 +180,7 @@ const App: React.FC = () => {
 
       // Phone collected - send lead email
       if (nextStep === "askAgreement" && step === "askPhone") {
-        const transcript = getTranscript({ from: "user", text });
+        const transcript = getTranscript([...chatHistory, { from: "bot", text: aiResponse.message }]);
         await sendLeadEmail(updatedInfo, transcript);
       }
 
@@ -189,7 +188,7 @@ const App: React.FC = () => {
       if (nextStep === "done" && step === "confirmAgreement") {
         const finalInfo = { ...updatedInfo, agreementSent: true };
         setRoleInfo(finalInfo);
-        const transcript = getTranscript({ from: "user", text });
+        const transcript = getTranscript([...chatHistory, { from: "bot", text: aiResponse.message }]);
         await callAPI("/api/send-agreement", {
           companyName: finalInfo.companyName,
           signorName: finalInfo.signorName,
@@ -203,7 +202,7 @@ const App: React.FC = () => {
 
       // User declined agreement - send lead email + redirect
       if (nextStep === "done" && step === "askAgreement") {
-        const transcript = getTranscript({ from: "user", text });
+        const transcript = getTranscript([...chatHistory, { from: "bot", text: aiResponse.message }]);
         await sendLeadEmail(updatedInfo, transcript);
         redirectWhenDone();
       }
