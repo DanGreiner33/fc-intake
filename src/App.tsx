@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [nextMessageId, setNextMessageId] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+    const roleInfoRef = useRef<RoleInfo>({});
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,7 +161,7 @@ const App: React.FC = () => {
       }
 
       const extracted = aiResponse.extractedData || {};
-      const updatedInfo = { ...roleInfo };
+      const updatedInfo = { ...roleInfoRef.current };
       if (extracted.position) updatedInfo.position = extracted.position;
       if (extracted.priority1) updatedInfo.priority1 = extracted.priority1;
       if (extracted.priority2) updatedInfo.priority2 = extracted.priority2;
@@ -170,7 +171,7 @@ const App: React.FC = () => {
       if (extracted.companyName) updatedInfo.companyName = extracted.companyName;
       if (extracted.signorName) updatedInfo.signorName = extracted.signorName;
       if (extracted.signorTitle) updatedInfo.signorTitle = extracted.signorTitle;
-      setRoleInfo(updatedInfo);
+      roleInfoRef.current = updatedInfo; setRoleInfo(updatedInfo);
 
       const options = aiResponse.options || undefined;
       addBotMessage(aiResponse.message, options);
@@ -178,16 +179,11 @@ const App: React.FC = () => {
       const nextStep = aiResponse.nextStep || step;
       setStep(nextStep as Step);
 
-      // Phone collected - send lead email
-      if (nextStep === "askAgreement" && step === "askPhone") {
-        const transcript = getTranscript([...chatHistory, { from: "bot", text: aiResponse.message }]);
-        await sendLeadEmail(updatedInfo, transcript);
-      }
 
       // Agreement confirmed - send agreement + updated lead email + redirect
       if (nextStep === "done" && step === "confirmAgreement") {
         const finalInfo = { ...updatedInfo, agreementSent: true };
-        setRoleInfo(finalInfo);
+        roleInfoRef.current = finalInfo; setRoleInfo(finalInfo);
         const transcript = getTranscript([...chatHistory, { from: "bot", text: aiResponse.message }]);
         await callAPI("/api/send-agreement", {
           companyName: finalInfo.companyName,
