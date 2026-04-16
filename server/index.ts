@@ -167,11 +167,20 @@ app.post("/api/chat", async (req, res) => {
     } else if (step === "askNameEmail") {
       parsed.nextStep = "askPhone";
       parsed.options = null;
+      // Fee inquiry detection at askNameEmail step
+      const feeKw = ["fee", "price", "pricing", "charge", "rate", "how much", "what do you charge", "percentage", "markup"];
+      const hasEmail = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(lastMsg);
+      if (!hasEmail && feeKw.some(kw => lastMsgLower.includes(kw))) {
+        parsed.nextStep = "askNameEmail";
+        parsed.message = "Based on the information provided, we can work this position at 20% of the first year's salary. Now, what\u2019s the best name and email to reach you at?";
+        parsed.options = null;
+      } else {
             // Server-side name/email extraction
       const emailMatch = lastMsg.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
       if (emailMatch) parsed.extractedData.contactEmail = emailMatch[0];
       const nameFromMsg = lastMsg.replace(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/, "").trim();
       if (nameFromMsg) parsed.extractedData.contactName = nameFromMsg;
+              }
     } else if (step === "askPhone") {
       parsed.nextStep = "askAgreement";
       parsed.options = agreementOpts;
