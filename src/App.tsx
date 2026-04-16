@@ -219,9 +219,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <span className="logo-text">FULLCIRCLE /</span>{" "}
+    <div className="app">
+      <header className="header">
+        <span className="logo">FULLCIRCLE /</span>{" "}
         <span className="logo-sub"> TALENT INTELLIGENCE</span>
       </header>
 
