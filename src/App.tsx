@@ -151,7 +151,7 @@ const App: React.FC = () => {
       const aiResponse = await callAPI("/api/chat", {
         messages: chatHistory,
         step,
-        roleInfo,
+        roleInfo: roleInfoRef.current,
       });
 
       if (!aiResponse || aiResponse.error) {

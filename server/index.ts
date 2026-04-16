@@ -138,6 +138,24 @@ app.post("/api/chat", async (req, res) => {
         if (!parsed.extractedData) parsed.extractedData = {};
         parsed.extractedData.priority2 = picked2;
       }
+            // Step 5: Smart Summary - override AI message with tailored summary
+      const summaryMap: Record<string, string> = {
+        "cost_speed": "You want to move fast and stay on budget. We focus on passive candidates \u2014 keeps comp in range and avoids the slow posting-and-waiting cycle. Totally doable.",
+        "cost_quality": "You want the right person without overpaying \u2014 that\u2019s the sweet spot we work in. We don\u2019t send warm bodies from a job board. Might take a few extra weeks, but you\u2019ll get a strong candidate at a fair price.",
+        "speed_cost": "ASAP hire at a reasonable rate \u2014 we can do that. We\u2019ll hit the ground running with candidates already in our network. You might not get every box checked, but you\u2019ll have someone solid in front of you quickly.",
+        "speed_quality": "You want someone great, and you want them now. Expect strong candidates fast \u2014 be ready to move when you see a good one. Budget flexibility helps here.",
+        "quality_cost": "You\u2019re prioritizing the right hire over speed and want to be smart about comp. Typically a 4-6 week process, but you\u2019ll see candidates you\u2019re actually excited about.",
+        "quality_speed": "Best person possible, sooner rather than later \u2014 that\u2019s a full-court press. We go deep on sourcing and move fast on vetting. Budget should reflect top of market."
+      };
+      const p1 = (roleInfo?.priority1 || "").toLowerCase();
+      const p2 = picked2 || "";
+      const summaryKey = `${p1}_${p2}`;
+      const summary = summaryMap[summaryKey];
+      if (summary) {
+        parsed.message = summary + "\n\nWhat\u2019s the best name and email to reach you at?";
+      } else {
+        parsed.message = "Got it! What\u2019s the best name and email to reach you at?";
+      }
     } else if (step === "askNameEmail") {
       parsed.nextStep = "askPhone";
       parsed.options = null;
