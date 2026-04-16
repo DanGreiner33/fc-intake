@@ -125,6 +125,13 @@ app.post("/api/chat", async (req, res) => {
     } else if (step === "askSecondary") {
       parsed.nextStep = "askNameEmail";
       parsed.options = null;
+            // Server-side priority2 extraction
+      const lastUserMsg2 = messages && messages.length > 0 ? messages[messages.length - 1].text.toLowerCase() : "";
+      const picked2 = lastUserMsg2.includes("cost") ? "cost" : lastUserMsg2.includes("speed") ? "speed" : lastUserMsg2.includes("quality") ? "quality" : "";
+      if (picked2) {
+        if (!parsed.extractedData) parsed.extractedData = {};
+        parsed.extractedData.priority2 = picked2;
+      }
     } else if (step === "askNameEmail") {
       parsed.nextStep = "askPhone";
       parsed.options = null;
