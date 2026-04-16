@@ -228,7 +228,7 @@ const App: React.FC = () => {
       <div className="chat-container">
         <div className="messages">
           {messages.map((m) => (
-            <div key={m.id} className={`message ${m.from}`}>
+            <div key={m.id} className={`msg ${m.from}`}>
               <div className={`bubble ${m.from} ${m.isCard ? "card" : ""}`}>{m.text}</div>
 
               {m.from === "bot" && m.options && (
