@@ -127,7 +127,8 @@ app.post("/api/chat", async (req, res) => {
     }
         if (step === "askPrimary" && (!parsed.options || parsed.options.length === 0)) {
       const allOpts = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
-      const p1 = (roleInfo && roleInfo.priority1) || "";
+      const lastUserMsg = messages && messages.length > 0 ? messages[messages.length - 1].text.toLowerCase() : "";
+      const p1 = lastUserMsg.includes("cost") ? "cost" : lastUserMsg.includes("speed") ? "speed" : lastUserMsg.includes("quality") ? "quality" : (roleInfo && roleInfo.priority1) || "";
       parsed.options = allOpts.filter(o => !o.toLowerCase().startsWith(p1.toLowerCase()));
     }
     if (step === "askPhone" && (!parsed.options || parsed.options.length === 0)) {
