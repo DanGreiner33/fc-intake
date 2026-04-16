@@ -2,12 +2,122 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
 app.use(cors());
 app.use(express.json());
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ============================================
+// SYSTEM PROMPT FOR INTAKE CHATBOT
+// ============================================
+const SYSTEM_PROMPT = `You are the FullCircle Placements intake assistant. You help hiring managers find the right recruiter match by gathering key info through a short, friendly conversation.
+
+Your personality: confident, warm, concise, and knowledgeable about recruiting. You sound like a sharp recruiter who's done this a thousand times. Keep responses to 1-3 sentences max. Never be wordy.
+
+You must follow this exact intake flow. The frontend tracks which step you're on via a "step" field. You must respond with valid JSON matching the schema below.
+
+INTAKE FLOW:
+1. askRole: User tells you what position they need. Acknowledge it naturally. If it matches a specialty (Legal, Finance, Accounting, HR, Engineering, Project Management, Financial Services), mention that. Then immediately ask what matters most to them right now and include options.
+2. askPrimary: User picks their #1 priority (cost, speed, or quality). Acknowledge their choice, then ask what's second most important. Only show the remaining 2 options.
+3. askSecondary: User picks their #2 priority. Give a brief, smart 1-2 sentence take on their priority combo and what to expect. Then ask for their name and email so your team can follow up.
+4. askNameEmail: User provides name and email. Confirm you got it and ask for a phone number.
+5. askPhone: User provides phone. Confirm everything, mention someone will be in touch shortly. Then offer to send over the standard recruiting agreement, with options "Yes, send it over" and "I'll wait until we talk first".
+6. askAgreement: If yes, ask for company name. If no, wrap up warmly.
+7. askCompanyName: User gives company name. Ask who will be signing (full legal name and title).
+8. askSignor: User gives signor info. Show a confirmation card with company, signor, and email. Offer options "Looks good \u2014 send it" and "Let me correct something".
+9. confirmAgreement: If confirmed, say the agreement is on its way. If correcting, ask which field.
+10. correcting: Handle corrections to company name, signor, or email.
+
+RESPONSE FORMAT - You must respond with valid JSON:
+{
+  "message": "your response text",
+  "options": ["option1", "option2"] or null,
+  "nextStep": "the next step name",
+  "extractedData": { any data you extracted from the user's message }
+}
+
+extractedData fields you should extract when available:
+- position: the role they want to fill
+- specialty: matched specialty category or null
+- priority1: "cost", "speed", or "quality"
+- priority2: "cost", "speed", or "quality"
+- contactName: their name
+- contactEmail: their email
+- contactPhone: their phone
+- companyName: company name
+- signorName: signor's name
+- signorTitle: signor's title
+
+PRIORITY OPTIONS (use these exact labels):
+- "Cost - market rate or below"
+- "Speed - need someone ASAP"
+- "Quality - best fit, even if it takes time"
+
+IMPORTANT RULES:
+- Always respond with valid JSON only. No markdown, no extra text.
+- Keep messages short and punchy. 1-3 sentences max.
+- Never skip steps or combine multiple steps.
+- The options array should contain clickable button labels when applicable, or null when free text is expected.
+- For the askPrimary step, always include all 3 priority options.
+- For the askSecondary step, only include the 2 remaining options (exclude the one they picked).
+- When extracting email, look for standard email patterns.
+- When extracting phone, accept various formats.
+- If the user says something unexpected, gently guide them back to the current step.`;
+
+// ============================================
+// OPENAI CHAT ENDPOINT
+// ============================================
+app.post("/api/chat", async (req, res) => {
+  const { messages, step, roleInfo } = req.body;
+
+  try {
+    const chatMessages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: `Current step: ${step}. Current collected data: ${JSON.stringify(roleInfo || {})}` },
+    ];
+
+    // Convert frontend messages to OpenAI format
+    if (messages && Array.isArray(messages)) {
+      for (const m of messages) {
+        chatMessages.push({
+          role: m.from === "bot" ? "assistant" : "user",
+          content: m.from === "bot" ? JSON.stringify({ message: m.text }) : m.text,
+        });
+      }
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+    });
+
+    const content = completion.choices[0]?.message?.content || "{}";
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = { message: "Sorry, let me try that again. Could you repeat that?", options: null, nextStep: step, extractedData: {} };
+    }
+
+    res.json({
+      message: parsed.message || "Could you tell me more?",
+      options: parsed.options || null,
+      nextStep: parsed.nextStep || step,
+      extractedData: parsed.extractedData || {},
+    });
+  } catch (err: any) {
+    console.error("OpenAI error:", err?.message || err);
+    res.status(500).json({ error: "AI service error", message: "Hmm, something went wrong on my end. Could you try that again?" });
+  }
+});
 
 // ============================================
 // LEAD CAPTURE API
@@ -45,21 +155,7 @@ app.post("/api/lead-capture", async (req, res) => {
   };
 
   try {
-    const emailBody = `<h2>New Lead from FullCircle Intake Chatbot</h2>
-<p><strong>Name:</strong> ${payload.name}</p>
-<p><strong>Email:</strong> ${payload.email}</p>
-<p><strong>Phone:</strong> ${payload.phone}</p>
-<p><strong>Position:</strong> ${payload.position}</p>
-<p><strong>Priority 1:</strong> ${payload.priority1}</p>
-<p><strong>Priority 2:</strong> ${payload.priority2}</p>
-<p><strong>Company:</strong> ${payload.companyName}</p>
-<p><strong>Agreement Sent:</strong> ${payload.agreementSent ? "Yes" : "No"}</p>
-<p><strong>Capture Point:</strong> ${payload.capturePoint}</p>
-<p><strong>Timestamp:</strong> ${payload.timestamp}</p>
-<hr>
-<h3>Chat Transcript</h3>
-<pre>${transcriptText}</pre>`;
-
+    const emailBody = `<h2>New Lead from FullCircle Intake Chatbot</h2><p><strong>Name:</strong> ${payload.name}</p><p><strong>Email:</strong> ${payload.email}</p><p><strong>Phone:</strong> ${payload.phone}</p><p><strong>Position:</strong> ${payload.position}</p><p><strong>Priority 1:</strong> ${payload.priority1}</p><p><strong>Priority 2:</strong> ${payload.priority2}</p><p><strong>Company:</strong> ${payload.companyName}</p><p><strong>Agreement Sent:</strong> ${payload.agreementSent ? "Yes" : "No"}</p><p><strong>Capture Point:</strong> ${payload.capturePoint}</p><p><strong>Timestamp:</strong> ${payload.timestamp}</p><hr><h3>Chat Transcript</h3><pre>${transcriptText}</pre>`;
     const wpResponse = await fetch("https://fullcircleplacements.com/wp-json/chatbot/v1/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,7 +166,6 @@ app.post("/api/lead-capture", async (req, res) => {
         body: emailBody,
       }),
     });
-
     const wpData = await wpResponse.json();
     if (wpResponse.ok) {
       console.log("Email sent successfully via WordPress");
@@ -89,17 +184,8 @@ app.post("/api/lead-capture", async (req, res) => {
 // ============================================
 app.post("/api/send-agreement", async (req, res) => {
   const { companyName, signorName, signorTitle, signerEmail, position } = req.body;
-
   console.log("Agreement request:", { companyName, signorName, signorTitle, signerEmail, position });
-
-  // TODO: Integrate DocuSign API here
-  // - Use DocuSign Envelopes:create endpoint
-  // - Populate template merge fields: Signer Name, Signer Title, Company Name, Signer Email, Role, Date
-  // - Set up webhook for signed notification
-
-  // For now, log and acknowledge
   console.log("DocuSign integration pending - agreement data logged");
-
   res.json({ status: "agreement_queued", message: "DocuSign integration pending" });
 });
 
@@ -110,7 +196,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.use(express.static(path.join(__dirname, "../dist")));
-
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "../dist/index.html"));
 });
