@@ -243,18 +243,18 @@ const App: React.FC = () => {
             </div>
           ))}
           {isLoading && (
-            <div className="message bot">
+            <div className="msg bot">
               <div className="bubble bot thinking">Thinking...</div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        <form onSubmit={handleSubmit} className="input-bar">
+        <form onSubmit={handleSubmit} className="input-area">
           <input type="text" placeholder="Type your response..." value={input} onChange={(e) => setInput(e.target.value)} />
           <button type="submit">{String.fromCharCode(0x21b5)}</button>
         </form>
-        <p className="fine-print">No forms. Just describe what you need.</p>
+        <p className="subtitle">No forms. Just describe what you need.</p>
       </div>
     </div>
   );
