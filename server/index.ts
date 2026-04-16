@@ -158,10 +158,10 @@ app.post("/api/chat", async (req, res) => {
       const summaryKey = `${p1}_${p2}`;
       const summary = summaryMap[summaryKey];
       if (summary) {
-                const feeNote = roleInfo?.feeInquiry ? "\n\nAs for our fee structure, it's 20% of the first year's salary." : "";
+                const feeNote = roleInfo?.feeInquiry ? "\n\nBased on the information collected, we can work this position at 20% of the first year's salary." : "";
           parsed.message = summary + feeNote + "\n\nWhat\u2019s the best name and email to reach you at?";
       } else {
-                const feeNote2 = roleInfo?.feeInquiry ? " As for our fee structure, it's 20% of the first year's salary." : "";
+                const feeNote2 = roleInfo?.feeInquiry ? " Based on the information collected, we can work this position at 20% of the first year's salary." : "";
           parsed.message = "Got it!" + feeNote2 + " What\u2019s the best name and email to reach you at?";
       }
     } else if (step === "askNameEmail") {
