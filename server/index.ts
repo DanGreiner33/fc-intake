@@ -205,10 +205,30 @@ app.post("/api/chat", async (req, res) => {
         parsed.nextStep = "done";
       }
     }
+
+        // Universal fee detection: if both priorities selected and user asks about fee at any step
+    const universalFeeKw = ["fee", "price", "pricing", "charge", "rate", "how much", "what do you charge", "percentage", "markup"];
+    const hasBothPriorities = (roleInfo?.priority1 && roleInfo?.priority2) || (parsed.extractedData?.priority2);
+    const hasEmailInMsg = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(lastMsg);
+    const isAskingFee = universalFeeKw.some(kw => lastMsgLower.includes(kw));
+    if (hasBothPriorities && isAskingFee && !hasEmailInMsg && step !== "askRole" && step !== "askPrimary" && step !== "askSecondary") {
+      const stepQuestions: Record<string, string> = {
+        "askNameEmail": "What\u2019s the best name and email to reach you at?",
+        "askPhone": "What\u2019s the best number to reach you at?",
+        "askAgreement": "Would you like us to send over the standard recruiting agreement?",
+        "askCompanyName": "What\u2019s the company name?",
+        "askSignor": "Who will be signing? (Full legal name and title)",
+      };
+      const followUp = stepQuestions[step] || "";
+      parsed.message = "Based on the information provided, we can work this position at 20% of the first year\u2019s salary.\n\n" + followUp;
+      parsed.nextStep = step;
+      parsed.options = step === "askAgreement" ? agreementOpts : null;
+    }
     res.json({
       message: parsed.message || "Could you tell me more?",
       options: parsed.options || null,
       nextStep: parsed.nextStep || step,
+      
       extractedData: parsed.extractedData || {},
     });
   } catch (err: any) {
