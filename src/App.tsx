@@ -190,12 +190,12 @@ Sending to: ${info.contactEmail || ""}`;
         const specialty = getSpecialty(position);
         let response: string;
         if (specialty) {
-          response = `Nice \u2014 ${specialty.toLowerCase()} placements are one of our specialties. Before I put together a game plan for you, I have two quick questions. Ready?`;
+          response = `Nice \u2014 ${specialty.toLowerCase()} placements are one of our specialties. When it comes to hiring, what matters most to you right now?`;
         } else {
-          response = `Got it \u2014 we\u2019ve placed ${position} roles across a lot of different industries. Before I put together a game plan for you, I have two quick questions. Ready?`;
+          response = `Got it \u2014 we\u2019ve placed ${position} roles across a lot of different industries. When it comes to hiring, what matters most to you right now?`;
         }
-        addBotMessage(response);
-        setStep("validateRole");
+        addBotMessage(response, ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"]);
+        setStep("askPrimary");
         break;
       }
 
