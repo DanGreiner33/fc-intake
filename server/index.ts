@@ -114,14 +114,20 @@ app.post("/api/chat", async (req, res) => {
     const allPriorityOpts = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
     const agreementOpts = ["Yes, send it over", "I'll wait until we talk first"];
 
+        const lastMsg = messages && messages.length > 0 ? messages[messages.length - 1].text : "";
+    const lastMsgLower = lastMsg.toLowerCase();
+    if (!parsed.extractedData) parsed.extractedData = {};
+
     if (step === "askRole") {
       parsed.nextStep = "askPrimary";
       parsed.options = allPriorityOpts;
+            parsed.extractedData.position = lastMsg;
     } else if (step === "askPrimary") {
       parsed.nextStep = "askSecondary";
       const lastUserMsg = messages && messages.length > 0 ? messages[messages.length - 1].text.toLowerCase() : "";
       const picked = lastUserMsg.includes("cost") ? "cost" : lastUserMsg.includes("speed") ? "speed" : lastUserMsg.includes("quality") ? "quality" : "";
       parsed.options = allPriorityOpts.filter(o => !o.toLowerCase().startsWith(picked));
+            if (picked) parsed.extractedData.priority1 = picked;
     } else if (step === "askSecondary") {
       parsed.nextStep = "askNameEmail";
       parsed.options = null;
@@ -135,9 +141,15 @@ app.post("/api/chat", async (req, res) => {
     } else if (step === "askNameEmail") {
       parsed.nextStep = "askPhone";
       parsed.options = null;
+            // Server-side name/email extraction
+      const emailMatch = lastMsg.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) parsed.extractedData.contactEmail = emailMatch[0];
+      const nameFromMsg = lastMsg.replace(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/, "").trim();
+      if (nameFromMsg) parsed.extractedData.contactName = nameFromMsg;
     } else if (step === "askPhone") {
       parsed.nextStep = "askAgreement";
       parsed.options = agreementOpts;
+            parsed.extractedData.contactPhone = lastMsg;
     } else if (step === "askAgreement") {
       if (parsed.nextStep === "askCompanyName") {
         parsed.options = null;
