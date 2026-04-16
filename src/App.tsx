@@ -100,7 +100,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (step === "askRole" && messages.length === 0) {
-      addBotMessage("Hey! What position are you looking to fill?");
+      addBotMessage("Thanks for visiting! What position are you looking to fill?");
     }
   }, []);
 
