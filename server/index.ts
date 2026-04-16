@@ -109,6 +109,14 @@ app.post("/api/chat", async (req, res) => {
       parsed = { message: "Sorry, let me try that again. Could you repeat that?", options: null, nextStep: step, extractedData: {} };
     }
 
+
+        // Server-side step override to ensure correct transitions
+    if (step === "askAgreement" && parsed.nextStep !== "askCompanyName") {
+      parsed.nextStep = "done";
+    }
+    if (step === "confirmAgreement" && parsed.nextStep !== "correcting") {
+      parsed.nextStep = "done";
+    }
     res.json({
       message: parsed.message || "Could you tell me more?",
       options: parsed.options || null,
