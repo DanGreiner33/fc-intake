@@ -117,6 +117,14 @@ app.post("/api/chat", async (req, res) => {
     if (step === "confirmAgreement" && parsed.nextStep !== "correcting") {
       parsed.nextStep = "done";
     }
+        // Force options for steps that require them
+    const nextStepVal = parsed.nextStep || step;
+    if (nextStepVal === "askAgreement" && (!parsed.options || parsed.options.length === 0)) {
+      parsed.options = ["Yes, send it over", "I'll wait until we talk first"];
+    }
+    if (nextStepVal === "askPrimary" && (!parsed.options || parsed.options.length === 0)) {
+      parsed.options = ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"];
+    }
     res.json({
       message: parsed.message || "Could you tell me more?",
       options: parsed.options || null,
