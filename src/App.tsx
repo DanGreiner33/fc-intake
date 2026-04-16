@@ -27,10 +27,8 @@ type Message = {
 
 type Step =
   | "askRole"
-  | "validateRole"
   | "askPrimary"
   | "askSecondary"
-  | "smartSummary"
   | "askNameEmail"
   | "askPhone"
   | "askAgreement"
@@ -39,38 +37,6 @@ type Step =
   | "confirmAgreement"
   | "correcting"
   | "done";
-
-const PRIORITY_OPTIONS: { key: "cost" | "speed" | "quality"; label: string; desc: string }[] = [
-  { key: "cost", label: "Cost", desc: "Cost - market rate or below" },
-  { key: "speed", label: "Speed", desc: "Speed - need someone ASAP" },
-  { key: "quality", label: "Quality", desc: "Quality - best fit, even if it takes time" },
-];
-
-const SPECIALTY_MAP: Record<string, string> = {
-  attorney: "Legal", lawyer: "Legal", paralegal: "Legal", counsel: "Legal",
-  cfo: "Finance", controller: "Finance", accountant: "Accounting", bookkeeper: "Accounting", cpa: "Accounting",
-  hr: "HR", recruiter: "HR", "human resources": "HR", "talent acquisition": "HR",
-  engineer: "Engineering", developer: "Engineering", architect: "Engineering",
-  "project manager": "Project Management", pm: "Project Management",
-  analyst: "Financial Services", banker: "Financial Services", advisor: "Financial Services",
-};
-
-const getSpecialty = (role: string): string | null => {
-  const lower = role.toLowerCase();
-  for (const [keyword, specialty] of Object.entries(SPECIALTY_MAP)) {
-    if (lower.includes(keyword)) return specialty;
-  }
-  return null;
-};
-
-const SMART_SUMMARIES: Record<string, string> = {
-  "cost-speed": "You want to move fast and stay on budget. We focus on passive candidates \u2014 keeps comp in range and avoids the slow posting-and-waiting cycle. Totally doable.",
-  "cost-quality": "You want the right person without overpaying \u2014 that\u2019s the sweet spot we work in. We don\u2019t send warm bodies from a job board. Might take a few extra weeks, but you\u2019ll get a strong candidate at a fair price.",
-  "speed-cost": "ASAP hire at a reasonable rate \u2014 we can do that. We\u2019ll hit the ground running with candidates already in our network. You might not get every box checked, but you\u2019ll have someone solid in front of you quickly.",
-  "speed-quality": "You want someone great, and you want them now. Expect strong candidates fast \u2014 be ready to move when you see a good one. Budget flexibility helps here.",
-  "quality-cost": "Right hire without overspending or rushing \u2014 that\u2019s a 4\u20136 week process typically, but you\u2019ll see candidates you\u2019re actually excited about.",
-  "quality-speed": "Best person possible, sooner rather than later \u2014 that\u2019s a full-court press. We go deep on sourcing and move fast on vetting. Budget should reflect top of market.",
-};
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,7 +50,10 @@ const App: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-  useEffect(() => { scrollToBottom(); }, [messages]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const callAPI = async (endpoint: string, body: any) => {
     try {
@@ -145,18 +114,6 @@ const App: React.FC = () => {
     handleUserInput(option);
   };
 
-  const getRemainingOptions = (selected: "cost" | "speed" | "quality") => {
-    return PRIORITY_OPTIONS.filter((p) => p.key !== selected);
-  };
-
-  const matchPriority = (text: string): "cost" | "speed" | "quality" | null => {
-    const lower = text.toLowerCase();
-    if (lower.includes("cost") || lower.includes("market") || lower.includes("budget")) return "cost";
-    if (lower.includes("speed") || lower.includes("asap") || lower.includes("fast")) return "speed";
-    if (lower.includes("quality") || lower.includes("best fit") || lower.includes("even if")) return "quality";
-    return null;
-  };
-
   const sendLeadEmail = async (info: RoleInfo, chatTranscript: string) => {
     await callAPI("/api/lead-capture", {
       email: info.contactEmail,
@@ -168,12 +125,6 @@ const App: React.FC = () => {
     });
   };
 
-  const buildConfirmationText = (info: RoleInfo): string => {
-    return `Company: ${info.companyName || ""}
-Signor: ${info.signorName || ""}, ${info.signorTitle || ""}
-Sending to: ${info.contactEmail || ""}`;
-  };
-
   const getTranscript = (extraMsg?: { from: string; text: string }) => {
     const allMsgs = extraMsg ? [...messages, extraMsg] : messages;
     return allMsgs.map((m: any) => `${m.from === "bot" ? "Bot" : "User"}: ${m.text}`).join("\n");
@@ -183,229 +134,107 @@ Sending to: ${info.contactEmail || ""}`;
     addUserMessage(text);
     setIsLoading(true);
 
-    switch (step) {
-      case "askRole": {
-        const position = text;
-        setRoleInfo((prev) => ({ ...prev, position }));
-        const specialty = getSpecialty(position);
-        let response: string;
-        if (specialty) {
-          response = `Nice \u2014 ${specialty.toLowerCase()} placements are one of our specialties. When it comes to hiring, what matters most to you right now?`;
-        } else {
-          response = `Got it \u2014 we\u2019ve placed ${position} roles across a lot of different industries. When it comes to hiring, what matters most to you right now?`;
-        }
-        addBotMessage(response, ["Cost - market rate or below", "Speed - need someone ASAP", "Quality - best fit, even if it takes time"]);
-        setStep("askPrimary");
-        break;
+    try {
+      // Build messages array for AI
+      const allMessages = [...messages, { id: 0, from: "user" as const, text }];
+      const chatHistory = allMessages.map((m) => ({ from: m.from, text: m.text }));
+
+      // Call AI endpoint
+      const aiResponse = await callAPI("/api/chat", {
+        messages: chatHistory,
+        step,
+        roleInfo,
+      });
+
+      if (!aiResponse || aiResponse.error) {
+        addBotMessage(aiResponse?.message || "Something went wrong. Could you try that again?");
+        setIsLoading(false);
+        return;
       }
 
-      case "validateRole": {
-        addBotMessage(
-          "When it comes to hiring, what matters most to you right now?",
-          [
-            "Cost - market rate or below",
-            "Speed - need someone ASAP",
-            "Quality - best fit, even if it takes time",
-          ]
-        );
-        setStep("askPrimary");
-        break;
-      }
+      // Update roleInfo with extracted data
+      const extracted = aiResponse.extractedData || {};
+      const updatedInfo = { ...roleInfo };
+      if (extracted.position) updatedInfo.position = extracted.position;
+      if (extracted.priority1) updatedInfo.priority1 = extracted.priority1;
+      if (extracted.priority2) updatedInfo.priority2 = extracted.priority2;
+      if (extracted.contactName) updatedInfo.contactName = extracted.contactName;
+      if (extracted.contactEmail) updatedInfo.contactEmail = extracted.contactEmail;
+      if (extracted.contactPhone) updatedInfo.contactPhone = extracted.contactPhone;
+      if (extracted.companyName) updatedInfo.companyName = extracted.companyName;
+      if (extracted.signorName) updatedInfo.signorName = extracted.signorName;
+      if (extracted.signorTitle) updatedInfo.signorTitle = extracted.signorTitle;
+      setRoleInfo(updatedInfo);
 
-      case "askPrimary": {
-        const primary = matchPriority(text);
-        if (!primary) {
-          addBotMessage(
-            "No worries \u2014 just pick one of these:",
-            [
-              "Cost - market rate or below",
-              "Speed - need someone ASAP",
-              "Quality - best fit, even if it takes time",
-            ]
-          );
-          setIsLoading(false);
-          return;
-        }
-        setRoleInfo((prev) => ({ ...prev, priority1: primary }));
-        const remaining = getRemainingOptions(primary);
-        addBotMessage(
-          "Great \u2014 what\u2019s second most important?",
-          remaining.map((r) => r.desc)
-        );
-        setStep("askSecondary");
-        break;
-      }
+      // Display the AI response
+      const options = aiResponse.options || undefined;
+      addBotMessage(aiResponse.message, options);
 
-      case "askSecondary": {
-        const secondary = matchPriority(text);
-        const primary = roleInfo.priority1;
-        if (!secondary || secondary === primary) {
-          const remaining = getRemainingOptions(primary!);
-          addBotMessage(
-            "Just pick one of these two:",
-            remaining.map((r) => r.desc)
-          );
-          setIsLoading(false);
-          return;
-        }
-        setRoleInfo((prev) => ({ ...prev, priority2: secondary }));
-        const summaryKey = `${primary}-${secondary}`;
-        const summary = SMART_SUMMARIES[summaryKey] || "";
-        addBotMessage([
-          summary,
-          "What\u2019s the best name and email to reach you at? We\u2019ll have someone from our team follow up \u2014 usually within a few hours."
-        ]);
-        setStep("askNameEmail");
-        break;
-      }
+      // Update step
+      const nextStep = aiResponse.nextStep || step;
+      setStep(nextStep as Step);
 
-      case "askNameEmail": {
-        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        const email = emailMatch ? emailMatch[0] : "";
-        const nameText = text.replace(email, "").replace(/[,;]/g, " ").trim();
-        if (!email) {
-          addBotMessage("I just need your name and email \u2014 you can type them both here.");
-          setIsLoading(false);
-          return;
-        }
-        setRoleInfo((prev) => ({ ...prev, contactName: nameText || "Friend", contactEmail: email }));
-        addBotMessage(`And a good phone number?`);
-        setStep("askPhone");
-        break;
-      }
-
-      case "askPhone": {
-        const phoneClean = text.replace(/[^0-9+()\-\s]/g, "").trim();
-        if (phoneClean.length < 7) {
-          addBotMessage("That doesn\u2019t look like a phone number \u2014 mind trying again?");
-          setIsLoading(false);
-          return;
-        }
-        const updatedInfo = { ...roleInfo, contactPhone: phoneClean };
-        setRoleInfo(updatedInfo);
+      // Handle side effects based on step transitions
+      if (nextStep === "askAgreement" && step === "askPhone") {
+        // Phone just collected - send lead email
         const transcript = getTranscript({ from: "user", text });
         await sendLeadEmail(updatedInfo, transcript);
-        const firstName = (updatedInfo.contactName || "there").split(" ")[0];
-        addBotMessage(
-          `You\u2019re all set, ${firstName} \u2014 someone from our team will be in touch shortly. One more thing while you wait \u2014 would you like us to send over our standard recruiting agreement? It\u2019s straightforward, and having it signed upfront means we can hit the ground running the moment we connect.`,
-          ["Yes, send it over", "I'll wait until we talk first"]
-        );
-        setStep("askAgreement");
-        break;
       }
 
-      case "askAgreement": {
-        const lower = text.toLowerCase();
-        if (lower.includes("yes") || lower.includes("send it")) {
-          addBotMessage("Quick \u2014 just need a couple details for the agreement. What\u2019s your company name?");
-          setStep("askCompanyName");
-        } else {
-          addBotMessage("No problem at all \u2014 your team will walk you through everything on the call. Talk soon!");
-          setStep("done");
-          setTimeout(() => {
-            if (window.parent !== window) {
-              window.parent.postMessage("fc-chat-done", "*");
-            }
-          }, 2500);
-        }
-        break;
+      if (nextStep === "done" && step === "confirmAgreement") {
+        // Agreement confirmed - send agreement + updated lead email
+        const finalInfo = { ...updatedInfo, agreementSent: true };
+        setRoleInfo(finalInfo);
+        const transcript = getTranscript({ from: "user", text });
+        await callAPI("/api/send-agreement", {
+          companyName: finalInfo.companyName,
+          signorName: finalInfo.signorName,
+          signorTitle: finalInfo.signorTitle,
+          signerEmail: finalInfo.contactEmail,
+          position: finalInfo.position,
+        });
+        await sendLeadEmail(finalInfo, transcript);
+        setTimeout(() => {
+          if (window.parent !== window) {
+            window.parent.postMessage("fc-chat-done", "*");
+          }
+        }, 2500);
       }
 
-      case "askCompanyName": {
-        setRoleInfo((prev) => ({ ...prev, companyName: text }));
-        addBotMessage("And who will be signing? I just need their full legal name and title \u2014 for example, Jane Smith, Managing Partner.");
-        setStep("askSignor");
-        break;
+      if (nextStep === "done" && step === "askAgreement") {
+        // User declined agreement - wrap up
+        setTimeout(() => {
+          if (window.parent !== window) {
+            window.parent.postMessage("fc-chat-done", "*");
+          }
+        }, 2500);
       }
 
-      case "askSignor": {
-        const parts = text.split(",").map((s) => s.trim());
-        const signorName = parts[0] || text;
-        const signorTitle = parts[1] || "";
-        const updated = { ...roleInfo, signorName, signorTitle };
-        setRoleInfo(updated);
-        addBotMessage(
-          `Got it \u2014 just want to make sure everything looks right before I send it over:\n\n\u2022 Company: ${updated.companyName}\n\u2022 Signor: ${signorName}, ${signorTitle}\n\u2022 Sending to: ${updated.contactEmail}`,
-          ["Looks good \u2014 send it", "Let me correct something"]
-        );
-        setStep("confirmAgreement");
-        break;
-      }
-
-      case "confirmAgreement": {
-        const lower = text.toLowerCase();
-        if (lower.includes("looks good") || lower.includes("send it")) {
-          const updated = { ...roleInfo, agreementSent: true };
-          setRoleInfo(updated);
-          const transcript = getTranscript({ from: "user", text });
-          await callAPI("/api/send-agreement", {
-            companyName: updated.companyName,
-            signorName: updated.signorName,
-            signorTitle: updated.signorTitle,
-            signerEmail: updated.contactEmail,
-            position: updated.position,
-          });
-          await sendLeadEmail(updated, transcript);
-          addBotMessage(`Done \u2014 the agreement is on its way to ${updated.contactEmail}. Should be in your inbox within a minute or two. Once it\u2019s signed, our team will be ready to hit the ground running. Talk soon!`);
-          setStep("done");
-          setTimeout(() => {
-            if (window.parent !== window) {
-              window.parent.postMessage("fc-chat-done", "*");
-            }
-          }, 2500);
-        } else if (lower.includes("correct")) {
-          addBotMessage("No problem! Which field needs updating?", ["Company name", "Signor name/title", "Email"]);
-          setStep("correcting");
-        } else {
-          addBotMessage("Just tap one of the options above.", ["Looks good \u2014 send it", "Let me correct something"]);
-        }
-        break;
-      }
-
-      case "correcting": {
-        const lower = text.toLowerCase();
-        if (lower.includes("company")) {
-          addBotMessage("What\u2019s the correct company name?");
-          setStep("askCompanyName");
-        } else if (lower.includes("signor") || lower.includes("name") || lower.includes("title")) {
-          addBotMessage("What\u2019s the correct name and title? (e.g. Jane Smith, Managing Partner)");
-          setStep("askSignor");
-        } else if (lower.includes("email")) {
-          addBotMessage("What\u2019s the correct email address?");
-          setStep("askNameEmail");
-        } else {
-          addBotMessage("Which field needs updating?", ["Company name", "Signor name/title", "Email"]);
-        }
-        break;
-      }
-
-      default:
-        break;
+    } catch (err) {
+      console.error("Chat error:", err);
+      addBotMessage("Something went wrong. Could you try that again?");
     }
+
     setIsLoading(false);
   };
 
   return (
-    <div className="app">
-      <div className="header">
-        <span className="logo">FULLCIRCLE /</span>{" "}
-        <span className="logo-sub">TALENT INTELLIGENCE</span>
-      </div>
+    <div className="app-container">
+      <header className="app-header">
+        <span className="logo-text">FULLCIRCLE /</span>{" "}
+        <span className="logo-sub"> TALENT INTELLIGENCE</span>
+      </header>
 
       <div className="chat-container">
         <div className="messages">
           {messages.map((m) => (
-            <div key={m.id} className={`msg ${m.from}`}>
-              <div className="bubble">{m.text}</div>
+            <div key={m.id} className={`message ${m.from}`}>
+              <div className={`bubble ${m.from} ${m.isCard ? "card" : ""}`}>{m.text}</div>
+
               {m.from === "bot" && m.options && (
                 <div className="options">
                   {m.options.map((opt) => (
-                    <button
-                      key={opt}
-                      className={`option-btn${m.optionsDisabled ? " disabled" : ""}`}
-                      disabled={m.optionsDisabled}
-                      onClick={() => !m.optionsDisabled && handleOptionClick(opt)}
-                    >
+                    <button key={opt} className={`option-btn ${m.optionsDisabled ? "disabled" : ""}`} disabled={m.optionsDisabled} onClick={() => !m.optionsDisabled && handleOptionClick(opt)}>
                       {opt}
                     </button>
                   ))}
@@ -414,23 +243,18 @@ Sending to: ${info.contactEmail || ""}`;
             </div>
           ))}
           {isLoading && (
-            <div className="msg bot">
-              <div className="bubble thinking">Thinking...</div>
+            <div className="message bot">
+              <div className="bubble bot thinking">Thinking...</div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        <form className="input-area" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Type your response..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
+        <form onSubmit={handleSubmit} className="input-bar">
+          <input type="text" placeholder="Type your response..." value={input} onChange={(e) => setInput(e.target.value)} />
           <button type="submit">{String.fromCharCode(0x21b5)}</button>
         </form>
-        <div className="subtitle">No forms. Just describe what you need.</div>
+        <p className="fine-print">No forms. Just describe what you need.</p>
       </div>
     </div>
   );
